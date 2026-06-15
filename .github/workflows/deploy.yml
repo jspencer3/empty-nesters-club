@@ -1,8 +1,7 @@
 name: Deploy
 
+# Disabled — local dev only for now. Re-enable push trigger when ready to deploy.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:

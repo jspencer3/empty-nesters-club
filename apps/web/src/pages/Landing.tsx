@@ -128,7 +128,7 @@ export function Landing() {
           The nest is empty, but life is full. Find new experiences, build friendships, and embrace
           this exciting chapter with fellow empty nesters.
         </p>
-        <Link to="/signup" style={styles.cta}>
+        <Link to="/login" style={styles.cta}>
           Join the Flock
         </Link>
       </section>
