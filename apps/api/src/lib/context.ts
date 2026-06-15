@@ -12,6 +12,14 @@ export async function createContext(ctx: YogaInitialContext): Promise<GraphQLCon
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7)
     currentUser = await verifyToken(token)
+    if (!currentUser) {
+      console.warn(
+        '[context] Token provided but verification failed. Token prefix:',
+        token.slice(0, 20) + '...',
+      )
+    }
+  } else {
+    console.warn('[context] No Authorization header on request')
   }
 
   return { currentUser }

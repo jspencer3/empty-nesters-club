@@ -1,4 +1,4 @@
-import { jwtVerify } from 'jose'
+import { jwtVerify, createRemoteJWKSet } from 'jose'
 
 export interface AuthUser {
   id: string
@@ -7,12 +7,13 @@ export interface AuthUser {
 }
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? ''
-const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET ?? ''
+
+// Use JWKS endpoint for token verification (supports ES256 asymmetric keys)
+const JWKS = createRemoteJWKSet(new URL(`${SUPABASE_URL}/auth/v1/.well-known/jwks.json`))
 
 export async function verifyToken(token: string): Promise<AuthUser | null> {
   try {
-    const secret = new TextEncoder().encode(SUPABASE_JWT_SECRET)
-    const { payload } = await jwtVerify(token, secret, {
+    const { payload } = await jwtVerify(token, JWKS, {
       issuer: `${SUPABASE_URL}/auth/v1`,
     })
 
@@ -21,7 +22,8 @@ export async function verifyToken(token: string): Promise<AuthUser | null> {
       email: (payload.email as string) ?? '',
       role: (payload.role as string) ?? 'authenticated',
     }
-  } catch {
+  } catch (err) {
+    console.error('[auth] JWT verification failed:', (err as Error).message)
     return null
   }
 }

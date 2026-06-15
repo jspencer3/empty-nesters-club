@@ -18,7 +18,10 @@
     "db:seed": "pnpm --filter @enc/db seed"
   },
   "devDependencies": {
-    "turbo": "^2.5.0",
-    "prettier": "^3.5.0"
+    "prettier": "^3.5.0",
+    "turbo": "^2.5.0"
+  },
+  "dependencies": {
+    "pnpm": "^11.7.0"
   }
 }

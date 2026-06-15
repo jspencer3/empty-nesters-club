@@ -2,16 +2,18 @@
 
 ## High Priority — Core Functionality
 
-- [ ] **Frontend GraphQL client** — urql client + graphql-codegen for typed operations
-- [ ] **Frontend auth integration** — Supabase Auth SDK (sign up, sign in, sign out, session/token management)
+- [x] **Frontend GraphQL client** — urql client + graphql-codegen for typed operations
+- [x] **Frontend auth integration** — Supabase Auth SDK (sign up, sign in, sign out, session/token management)
+- [x] **Supabase project provisioning** — Real project, JWT secret, env vars configured
+- [x] **Route guards** — Redirect unauthenticated users from protected routes
+- [x] **Local dev environment** — Docker Postgres + Redis, Prisma push, seed data
+- [ ] **Supabase webhook** — Auto-create User record on signup (API endpoint hit by Supabase)
 - [ ] **Frontend forms and mutations** — Profile create/edit, partner groups, nest CRUD, activity lifecycle
 - [ ] **Real-time notifications** — WebSocket subscription delivery (server + client)
 - [ ] **Database migrations** — Convert from `db push` to proper migration history for production
-- [ ] **Supabase project provisioning** — Real project, JWT secret, webhook for auto-creating User records on signup
 
 ## Medium Priority — Completeness
 
-- [ ] **Route guards** — Redirect unauthenticated users from protected routes
 - [ ] **Error handling** — GraphQL error parsing, client-side error boundaries, toast notifications
 - [ ] **Pagination** — Cursor/offset pagination on list queries (activities, nests, notifications)
 - [ ] **Input validation** — Wire up Pothos validation plugin for mutation inputs
@@ -26,7 +28,6 @@
 - [ ] **Logging/observability** — Structured logging, health check endpoints
 - [ ] **CSS/styling** — Replace inline styles with Tailwind CSS or similar
 - [ ] **GitHub repo** — Push to remote, configure branch protection
-- [ ] **Supabase webhook** — Auto-create User record on signup (edge function or API endpoint)
 - [ ] **Search** — Full-text search for activities and nests
 - [ ] **Image optimization** — CDN thumbnails for avatars
 

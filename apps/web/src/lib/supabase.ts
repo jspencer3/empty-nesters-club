@@ -10,7 +10,8 @@ export const supabase: SupabaseClient = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : (null as unknown as SupabaseClient)
 
-// Synchronous accessor for the current access token (used by GraphQL client)
+// Token cache — updated by both the auth state listener and manual session fetch.
+// This provides a synchronous accessor for the GraphQL client's fetchOptions.
 let currentAccessToken: string | null = null
 
 if (isSupabaseConfigured) {
@@ -24,6 +25,18 @@ if (isSupabaseConfigured) {
   })
 }
 
+/**
+ * Synchronous accessor for the current access token.
+ * Used by the GraphQL client to attach the Authorization header.
+ */
 export function getAccessToken(): string | null {
   return currentAccessToken
+}
+
+/**
+ * Explicitly set the access token (called by AuthProvider once session is confirmed).
+ * This eliminates the race between token initialization and GraphQL queries.
+ */
+export function setAccessToken(token: string | null): void {
+  currentAccessToken = token
 }

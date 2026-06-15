@@ -85,17 +85,37 @@ const styles = {
     borderRadius: '6px',
     fontSize: '0.85rem',
   },
+  success: {
+    background: '#ecfdf5',
+    color: '#059669',
+    padding: '0.5rem 0.75rem',
+    borderRadius: '6px',
+    fontSize: '0.85rem',
+  },
+  forgotLink: {
+    color: '#2d6a4f',
+    fontSize: '0.8rem',
+    cursor: 'pointer',
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    textAlign: 'right' as const,
+    display: 'block',
+    marginTop: '0.25rem',
+  },
 }
 
+type Mode = 'sign-in' | 'sign-up' | 'forgot-password'
+
 export function Login() {
-  const [isSignUp, setIsSignUp] = useState(false)
+  const [mode, setMode] = useState<Mode>('sign-in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const navigate = useNavigate()
-  const { signUp, signIn } = useAuth()
+  const { signUp, signIn, resetPassword } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -103,7 +123,14 @@ export function Login() {
     setMessage(null)
     setLoading(true)
 
-    if (isSignUp) {
+    if (mode === 'forgot-password') {
+      const { error } = await resetPassword(email)
+      if (error) {
+        setError(error.message)
+      } else {
+        setMessage('Check your email for a password reset link.')
+      }
+    } else if (mode === 'sign-up') {
       const { error } = await signUp(email, password)
       if (error) {
         setError(error.message)
@@ -122,20 +149,33 @@ export function Login() {
     setLoading(false)
   }
 
+  const switchMode = (newMode: Mode) => {
+    setMode(newMode)
+    setError(null)
+    setMessage(null)
+  }
+
+  const getTitle = () => {
+    if (mode === 'forgot-password') return 'Reset Password'
+    if (mode === 'sign-up') return 'Create your account'
+    return 'Sign in to your account'
+  }
+
+  const getButtonText = () => {
+    if (loading) return 'Please wait...'
+    if (mode === 'forgot-password') return 'Send Reset Link'
+    if (mode === 'sign-up') return 'Sign Up'
+    return 'Sign In'
+  }
+
   return (
     <div style={styles.container}>
       <div style={styles.card}>
         <h1 style={styles.title}>Empty Nesters Club</h1>
-        <p style={styles.subtitle}>
-          {isSignUp ? 'Create your account' : 'Sign in to your account'}
-        </p>
+        <p style={styles.subtitle}>{getTitle()}</p>
         <form style={styles.form} onSubmit={handleSubmit}>
           {error && <div style={styles.error}>{error}</div>}
-          {message && (
-            <div style={{ ...styles.error, background: '#ecfdf5', color: '#059669' }}>
-              {message}
-            </div>
-          )}
+          {message && <div style={styles.success}>{message}</div>}
           <div>
             <label style={styles.label} htmlFor="email">
               Email
@@ -149,37 +189,58 @@ export function Login() {
               required
             />
           </div>
-          <div>
-            <label style={styles.label} htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              style={styles.input}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
-          </div>
+          {mode !== 'forgot-password' && (
+            <div>
+              <label style={styles.label} htmlFor="password">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                style={styles.input}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+              {mode === 'sign-in' && (
+                <button
+                  type="button"
+                  style={styles.forgotLink}
+                  onClick={() => switchMode('forgot-password')}
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
+          )}
           <button type="submit" style={styles.button} disabled={loading}>
-            {loading ? 'Please wait...' : isSignUp ? 'Sign Up' : 'Sign In'}
+            {getButtonText()}
           </button>
         </form>
         <div style={styles.toggle}>
-          {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
-          <button
-            type="button"
-            style={styles.toggleLink}
-            onClick={() => {
-              setIsSignUp(!isSignUp)
-              setError(null)
-              setMessage(null)
-            }}
-          >
-            {isSignUp ? 'Sign In' : 'Sign Up'}
-          </button>
+          {mode === 'forgot-password' ? (
+            <>
+              Remember your password?{' '}
+              <button type="button" style={styles.toggleLink} onClick={() => switchMode('sign-in')}>
+                Sign In
+              </button>
+            </>
+          ) : mode === 'sign-up' ? (
+            <>
+              Already have an account?{' '}
+              <button type="button" style={styles.toggleLink} onClick={() => switchMode('sign-in')}>
+                Sign In
+              </button>
+            </>
+          ) : (
+            <>
+              Don't have an account?{' '}
+              <button type="button" style={styles.toggleLink} onClick={() => switchMode('sign-up')}>
+                Sign Up
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

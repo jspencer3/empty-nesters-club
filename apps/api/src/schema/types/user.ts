@@ -68,6 +68,29 @@ builder.queryField('user', (t) =>
   }),
 )
 
+// Mutation: ensure user exists (called by frontend after auth state change)
+// Upserts a User record using JWT claims — idempotent
+builder.mutationField('ensureUser', (t) =>
+  t.field({
+    type: User,
+    authScopes: { authenticated: true },
+    resolve: async (_root, _args, ctx) => {
+      const { id: supabaseId, email } = ctx.currentUser!
+      const displayName = email.split('@')[0] ?? 'New User'
+
+      return prisma.user.upsert({
+        where: { supabaseId },
+        update: {}, // Don't overwrite existing data
+        create: {
+          supabaseId,
+          email,
+          displayName,
+        },
+      })
+    },
+  }),
+)
+
 // Mutation: create profile (called after Supabase signup)
 const CreateProfileInput = builder.inputType('CreateProfileInput', {
   fields: (t) => ({
