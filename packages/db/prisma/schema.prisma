@@ -26,6 +26,21 @@ model User {
   nestMemberships         NestMembership[]
   sentInvites             PartnerGroupInvite[] @relation("InviteSender")
   receivedInvites         PartnerGroupInvite[] @relation("InviteRecipient")
+  sentNestInvites         NestInvite[]         @relation("NestInviteSender")
+  receivedNestInvites     NestInvite[]         @relation("NestInviteRecipient")
+  adminVoteNominations    AdminVote[]          @relation("AdminVoteNominee")
+  adminVoteInitiations    AdminVote[]          @relation("AdminVoteInitiator")
+  adminVoteBallots        AdminVoteBallot[]    @relation("AdminVoteBallotVoter")
+  ratings                 Rating[]
+  bookmarks               Bookmark[]
+  comments                Comment[]
+  reactions               Reaction[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+  testimonials            Testimonial[]        @relation("TestimonialAuthor")
+  approvedTestimonials    Testimonial[]        @relation("TestimonialApprover")
+  submittedActivities     Activity[]           @relation("ActivitySubmitter")
+  approvedActivities      Activity[]           @relation("ActivityApprover")
 
   @@map("users")
 }
@@ -51,6 +66,7 @@ model PartnerGroup {
   members         PartnerGroupMember[]
   nestMemberships NestMembership[]
   invites         PartnerGroupInvite[]
+  activityInstances ActivityInstance[]
 
   @@map("partner_groups")
 }
@@ -109,8 +125,74 @@ model Nest {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   memberships NestMembership[]
+  invites     NestInvite[]
+  adminVotes  AdminVote[]
+  activityInstances ActivityInstance[]
+  testimonials      Testimonial[]
 
   @@map("nests")
+}
+
+model NestInvite {
+  id           String           @id @default(uuid()) @db.Uuid
+  nestId       String           @map("nest_id") @db.Uuid
+  inviterId    String           @map("inviter_id") @db.Uuid
+  inviteeId    String?          @map("invitee_id") @db.Uuid
+  inviteeEmail String           @map("invitee_email")
+  status       NestInviteStatus @default(PENDING)
+  createdAt    DateTime         @default(now()) @map("created_at")
+  respondedAt  DateTime?        @map("responded_at")
+
+  nest    Nest  @relation(fields: [nestId], references: [id], onDelete: Cascade)
+  inviter User  @relation("NestInviteSender", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee User? @relation("NestInviteRecipient", fields: [inviteeId], references: [id], onDelete: SetNull)
+
+  @@map("nest_invites")
+}
+
+enum NestInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+model AdminVote {
+  id          String          @id @default(uuid()) @db.Uuid
+  nestId      String          @map("nest_id") @db.Uuid
+  nomineeId   String          @map("nominee_id") @db.Uuid
+  initiatedBy String          @map("initiated_by") @db.Uuid
+  status      AdminVoteStatus @default(OPEN)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  closedAt    DateTime?       @map("closed_at")
+
+  nest      Nest              @relation(fields: [nestId], references: [id], onDelete: Cascade)
+  nominee   User              @relation("AdminVoteNominee", fields: [nomineeId], references: [id], onDelete: Cascade)
+  initiator User              @relation("AdminVoteInitiator", fields: [initiatedBy], references: [id], onDelete: Cascade)
+  ballots   AdminVoteBallot[]
+
+  @@map("admin_votes")
+}
+
+enum AdminVoteStatus {
+  OPEN
+  PASSED
+  FAILED
+  CANCELLED
+}
+
+model AdminVoteBallot {
+  id        String   @id @default(uuid()) @db.Uuid
+  voteId    String   @map("vote_id") @db.Uuid
+  voterId   String   @map("voter_id") @db.Uuid
+  inFavor   Boolean  @map("in_favor")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vote  AdminVote @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  voter User      @relation("AdminVoteBallotVoter", fields: [voterId], references: [id], onDelete: Cascade)
+
+  @@unique([voteId, voterId])
+  @@map("admin_vote_ballots")
 }
 
 model NestMembership {
@@ -133,4 +215,219 @@ model NestMembership {
 enum NestRole {
   MEMBER
   ADMIN
+}
+
+// ─── Phase 4: Activity Catalog & Lifecycle ───────────────────────────
+
+model Activity {
+  id           String         @id @default(uuid()) @db.Uuid
+  title        String
+  description  String
+  category     String
+  imageUrl     String?        @map("image_url")
+  difficulty   Difficulty     @default(MODERATE)
+  estimatedDuration String?   @map("estimated_duration")
+  status       ActivityStatus @default(PENDING)
+  submittedById String?       @map("submitted_by_id") @db.Uuid
+  approvedById String?        @map("approved_by_id") @db.Uuid
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  submittedBy  User?              @relation("ActivitySubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  approvedBy   User?              @relation("ActivityApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  instances    ActivityInstance[]
+  bookmarks    Bookmark[]
+
+  @@map("activities")
+}
+
+enum ActivityStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum Difficulty {
+  EASY
+  MODERATE
+  CHALLENGING
+  EXTREME
+}
+
+model ActivityInstance {
+  id              String         @id @default(uuid()) @db.Uuid
+  activityId      String         @map("activity_id") @db.Uuid
+  nestId          String?        @map("nest_id") @db.Uuid
+  partnerGroupId  String?        @map("partner_group_id") @db.Uuid
+  status          InstanceStatus @default(PLANNED)
+  startedAt       DateTime?      @map("started_at")
+  completedAt     DateTime?      @map("completed_at")
+  notes           String?
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  activity      Activity       @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  nest          Nest?          @relation(fields: [nestId], references: [id], onDelete: Cascade)
+  partnerGroup  PartnerGroup?  @relation(fields: [partnerGroupId], references: [id], onDelete: Cascade)
+  ratings       Rating[]
+  discussion    Discussion?
+
+  @@map("activity_instances")
+}
+
+enum InstanceStatus {
+  PLANNED
+  IN_PROGRESS
+  DONE
+  ABANDONED
+}
+
+model Rating {
+  id                 String   @id @default(uuid()) @db.Uuid
+  activityInstanceId String   @map("activity_instance_id") @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  score              Int      @db.SmallInt
+  comment            String?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  activityInstance ActivityInstance @relation(fields: [activityInstanceId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([activityInstanceId, userId])
+  @@map("ratings")
+}
+
+model Bookmark {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  activityId String   @map("activity_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityId])
+  @@map("bookmarks")
+}
+
+// ─── Phase 5: Discussions & Social ───────────────────────────────────
+
+model Discussion {
+  id                 String   @id @default(uuid()) @db.Uuid
+  activityInstanceId String   @unique @map("activity_instance_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  activityInstance ActivityInstance @relation(fields: [activityInstanceId], references: [id], onDelete: Cascade)
+  comments         Comment[]
+
+  @@map("discussions")
+}
+
+model Comment {
+  id              String   @id @default(uuid()) @db.Uuid
+  discussionId    String   @map("discussion_id") @db.Uuid
+  authorId        String   @map("author_id") @db.Uuid
+  parentCommentId String?  @map("parent_comment_id") @db.Uuid
+  body            String
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  discussion Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent     Comment?   @relation("CommentThread", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies    Comment[]  @relation("CommentThread")
+  reactions  Reaction[]
+
+  @@map("comments")
+}
+
+model Reaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  commentId String   @map("comment_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  emoji     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId, emoji])
+  @@map("reactions")
+}
+
+// ─── Phase 7: Testimonials ───────────────────────────────────────────
+
+model Testimonial {
+  id             String             @id @default(uuid()) @db.Uuid
+  authorId       String             @map("author_id") @db.Uuid
+  body           String
+  visibility     TestimonialVisibility @default(USER_PRIVATE)
+  nestId         String?            @map("nest_id") @db.Uuid
+  approvalStatus ApprovalStatus     @default(PENDING)
+  approvedById   String?            @map("approved_by_id") @db.Uuid
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  author     User  @relation("TestimonialAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  nest       Nest? @relation(fields: [nestId], references: [id], onDelete: SetNull)
+  approvedBy User? @relation("TestimonialApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@map("testimonials")
+}
+
+enum TestimonialVisibility {
+  USER_PRIVATE
+  FAMILY_PRIVATE
+  NEST_PRIVATE
+  PUBLIC
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─── Phase 8: Notifications ──────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  title     String
+  body      String?
+  actionUrl String?          @map("action_url")
+  read      Boolean          @default(false)
+  emailSent Boolean          @default(false) @map("email_sent")
+  pushSent  Boolean          @default(false) @map("push_sent")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  INVITE
+  ACTIVITY_UPDATE
+  MENTION
+  REPLY
+  VOTE
+  ADMIN
+  TESTIMONIAL
+}
+
+model NotificationPreference {
+  id             String  @id @default(uuid()) @db.Uuid
+  userId         String  @map("user_id") @db.Uuid
+  eventType      NotificationType @map("event_type")
+  inAppEnabled   Boolean @default(true) @map("in_app_enabled")
+  emailEnabled   Boolean @default(true) @map("email_enabled")
+  pushEnabled    Boolean @default(true) @map("push_enabled")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventType])
+  @@map("notification_preferences")
 }

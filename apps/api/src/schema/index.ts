@@ -3,6 +3,13 @@ import './types/query.js'
 import './types/mutation.js'
 import './types/user.js'
 import './types/partner-group.js'
+import './types/nest.js'
 import './types/upload.js'
+import './types/activity.js'
+import './types/discussion.js'
+import './types/testimonial.js'
+import './types/notification.js'
+import './types/dashboard.js'
+import './types/admin.js'
 
 export const schema = builder.toSchema()
