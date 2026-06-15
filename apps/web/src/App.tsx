@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router'
 import { Layout } from './components/Layout'
+import { ProtectedRoute } from './components/ProtectedRoute'
 import { Landing } from './pages/Landing'
+import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Activities } from './pages/Activities'
 import { Nests } from './pages/Nests'
@@ -11,10 +13,13 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route index element={<Landing />} />
-        <Route element={<Layout />}>
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="activities" element={<Activities />} />
-          <Route path="nests" element={<Nests />} />
+        <Route path="login" element={<Login />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<Layout />}>
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="activities" element={<Activities />} />
+            <Route path="nests" element={<Nests />} />
+          </Route>
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
