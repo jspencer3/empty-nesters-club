@@ -1,0 +1,24 @@
+{
+  "name": "empty-nesters-club",
+  "private": true,
+  "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "clean": "turbo clean",
+    "db:generate": "pnpm --filter @enc/db generate",
+    "db:migrate": "pnpm --filter @enc/db migrate",
+    "db:push": "pnpm --filter @enc/db push",
+    "db:seed": "pnpm --filter @enc/db seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "prettier": "^3.5.0"
+  }
+}

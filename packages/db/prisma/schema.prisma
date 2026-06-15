@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String           @id @default(uuid()) @db.Uuid
+  email            String           @unique
+  displayName      String           @map("display_name")
+  avatarUrl        String?          @map("avatar_url")
+  bio              String?
+  yearsEmpty       Int?             @map("years_empty")
+  numberOfKids     Int?             @map("number_of_kids")
+  interests        String[]         @default([])
+  supabaseId       String           @unique @map("supabase_id")
+  role             UserRole         @default(MEMBER)
+  profileVisibility ProfileVisibility @default(NEST_MEMBERS) @map("profile_visibility")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  partnerGroupMemberships PartnerGroupMember[]
+  nestMemberships         NestMembership[]
+  sentInvites             PartnerGroupInvite[] @relation("InviteSender")
+  receivedInvites         PartnerGroupInvite[] @relation("InviteRecipient")
+
+  @@map("users")
+}
+
+enum UserRole {
+  MEMBER
+  SITE_ADMIN
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  NEST_MEMBERS
+  PARTNER_GROUP
+  PRIVATE
+}
+
+model PartnerGroup {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members         PartnerGroupMember[]
+  nestMemberships NestMembership[]
+  invites         PartnerGroupInvite[]
+
+  @@map("partner_groups")
+}
+
+model PartnerGroupMember {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  partnerGroupId String       @map("partner_group_id") @db.Uuid
+  role           PartnerGroupRole @default(MEMBER)
+  joinedAt       DateTime     @default(now()) @map("joined_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partnerGroup PartnerGroup @relation(fields: [partnerGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, partnerGroupId])
+  @@map("partner_group_members")
+}
+
+enum PartnerGroupRole {
+  OWNER
+  MEMBER
+}
+
+model PartnerGroupInvite {
+  id             String       @id @default(uuid()) @db.Uuid
+  partnerGroupId String       @map("partner_group_id") @db.Uuid
+  inviterId      String       @map("inviter_id") @db.Uuid
+  inviteeId      String?      @map("invitee_id") @db.Uuid
+  inviteeEmail   String       @map("invitee_email")
+  status         InviteStatus @default(PENDING)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  respondedAt    DateTime?    @map("responded_at")
+
+  partnerGroup PartnerGroup @relation(fields: [partnerGroupId], references: [id], onDelete: Cascade)
+  inviter      User         @relation("InviteSender", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee      User?        @relation("InviteRecipient", fields: [inviteeId], references: [id], onDelete: SetNull)
+
+  @@map("partner_group_invites")
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+model Nest {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  avatarUrl   String?  @map("avatar_url")
+  maxMembers  Int      @default(100) @map("max_members")
+  adminIdleThresholdDays Int @default(30) @map("admin_idle_threshold_days")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  memberships NestMembership[]
+
+  @@map("nests")
+}
+
+model NestMembership {
+  id             String         @id @default(uuid()) @db.Uuid
+  nestId         String         @map("nest_id") @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  partnerGroupId String?        @map("partner_group_id") @db.Uuid
+  role           NestRole       @default(MEMBER)
+  lastActiveAt   DateTime       @default(now()) @map("last_active_at")
+  joinedAt       DateTime       @default(now()) @map("joined_at")
+
+  nest         Nest          @relation(fields: [nestId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partnerGroup PartnerGroup? @relation(fields: [partnerGroupId], references: [id], onDelete: SetNull)
+
+  @@unique([nestId, userId])
+  @@map("nest_memberships")
+}
+
+enum NestRole {
+  MEMBER
+  ADMIN
+}
