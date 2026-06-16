@@ -28,3 +28,6 @@ packages/db/prisma/*.db
 
 # Docker
 docker-compose.override.yml
+
+# Local dev uploads
+uploads/

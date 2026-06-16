@@ -1,6 +1,6 @@
 import { builder } from '../builder.js'
 import { prisma } from '@enc/db'
-import { createPresignedUpload } from '../../lib/s3.js'
+import { createPresignedUpload } from '../../lib/storage.js'
 
 const PresignedUploadResult = builder.objectRef<{
   url: string
