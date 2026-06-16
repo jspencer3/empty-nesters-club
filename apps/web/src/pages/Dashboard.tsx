@@ -4,17 +4,18 @@ import { Link } from 'react-router'
 const USER_DASHBOARD_QUERY = gql`
   query UserDashboard {
     userDashboard {
-      totalNests
+      nestCount
       totalActivitiesCompleted
       totalActivitiesInProgress
-      totalPartnerGroups
+      bookmarkCount
       averageRating
-      recentInstances {
+      recentActivity {
         id
         status
         startedAt
         completedAt
         title
+        createdAt
       }
     }
   }
@@ -40,6 +41,39 @@ const NOTIFICATIONS_QUERY = gql`
       read
       createdAt
       actionUrl
+    }
+  }
+`
+
+const MY_ACTIVITY_FEED_QUERY = gql`
+  query DashboardActivityFeed($status: InstanceStatus) {
+    myActivityInstances(status: $status) {
+      id
+      status
+      startedAt
+      completedAt
+      createdAt
+      activity {
+        id
+        title
+        category
+        difficulty
+      }
+    }
+  }
+`
+
+const PUBLIC_TESTIMONIALS_QUERY = gql`
+  query DashboardTestimonials($limit: Int) {
+    publicTestimonials(limit: $limit) {
+      id
+      body
+      createdAt
+      author {
+        id
+        displayName
+        avatarUrl
+      }
     }
   }
 `
@@ -223,6 +257,14 @@ export function Dashboard() {
   const [dashboardResult] = useQuery({ query: USER_DASHBOARD_QUERY })
   const [meResult] = useQuery({ query: ME_QUERY })
   const [notificationsResult] = useQuery({ query: NOTIFICATIONS_QUERY })
+  const [activityFeedResult] = useQuery({
+    query: MY_ACTIVITY_FEED_QUERY,
+    variables: {},
+  })
+  const [testimonialsResult] = useQuery({
+    query: PUBLIC_TESTIMONIALS_QUERY,
+    variables: { limit: 5 },
+  })
 
   const loading = dashboardResult.fetching || meResult.fetching || notificationsResult.fetching
 
@@ -260,10 +302,10 @@ export function Dashboard() {
 
   const hasActivity =
     dashboard &&
-    (dashboard.totalNests > 0 ||
+    (dashboard.nestCount > 0 ||
       dashboard.totalActivitiesCompleted > 0 ||
       dashboard.totalActivitiesInProgress > 0 ||
-      dashboard.totalPartnerGroups > 0)
+      dashboard.bookmarkCount > 0)
 
   return (
     <div style={styles.container}>
@@ -282,7 +324,7 @@ export function Dashboard() {
         <>
           <div style={styles.statsGrid}>
             <div style={styles.statCard}>
-              <div style={styles.statValue}>{dashboard.totalNests}</div>
+              <div style={styles.statValue}>{dashboard.nestCount}</div>
               <div style={styles.statLabel}>Nests</div>
             </div>
             <div style={styles.statCard}>
@@ -294,8 +336,8 @@ export function Dashboard() {
               <div style={styles.statLabel}>In Progress</div>
             </div>
             <div style={styles.statCard}>
-              <div style={styles.statValue}>{dashboard.totalPartnerGroups}</div>
-              <div style={styles.statLabel}>Partner Groups</div>
+              <div style={styles.statValue}>{dashboard.bookmarkCount}</div>
+              <div style={styles.statLabel}>Bookmarks</div>
             </div>
           </div>
 
@@ -309,14 +351,15 @@ export function Dashboard() {
 
           <div style={styles.section}>
             <h2 style={styles.sectionTitle}>Recent Activity</h2>
-            {dashboard.recentInstances && dashboard.recentInstances.length > 0 ? (
+            {dashboard.recentActivity && dashboard.recentActivity.length > 0 ? (
               <ul style={styles.activityList}>
-                {dashboard.recentInstances.map(
+                {dashboard.recentActivity.map(
                   (instance: {
                     id: string
                     status: string
-                    startedAt: string
+                    startedAt: string | null
                     completedAt: string | null
+                    createdAt: string
                     title: string
                   }) => (
                     <li key={instance.id} style={styles.activityItem}>
@@ -326,7 +369,9 @@ export function Dashboard() {
                           {instance.status.replace('_', ' ')}
                         </span>
                         <span style={{ fontSize: '0.75rem', color: '#999' }}>
-                          {formatRelativeTime(instance.completedAt || instance.startedAt)}
+                          {formatRelativeTime(
+                            instance.completedAt || instance.startedAt || instance.createdAt,
+                          )}
                         </span>
                       </span>
                     </li>
@@ -370,6 +415,130 @@ export function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Activity Feed */}
+      {(() => {
+        const instances = activityFeedResult.data?.myActivityInstances ?? []
+        if (activityFeedResult.fetching || instances.length === 0) return null
+        return (
+          <div style={styles.section}>
+            <h2 style={styles.sectionTitle}>Activity Feed</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {instances
+                .slice(0, 10)
+                .map(
+                  (instance: {
+                    id: string
+                    status: string
+                    startedAt: string | null
+                    completedAt: string | null
+                    createdAt: string
+                    activity: { id: string; title: string; category: string; difficulty: string }
+                  }) => (
+                    <div key={instance.id} style={styles.activityItem}>
+                      <div>
+                        <span>{instance.activity.title}</span>
+                        <span style={{ fontSize: '0.75rem', color: '#999', marginLeft: '0.5rem' }}>
+                          {instance.activity.category}
+                        </span>
+                      </div>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={styles.statusBadge(instance.status)}>
+                          {instance.status.replace('_', ' ')}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#999' }}>
+                          {formatRelativeTime(
+                            instance.completedAt || instance.startedAt || instance.createdAt,
+                          )}
+                        </span>
+                      </span>
+                    </div>
+                  ),
+                )}
+            </div>
+            <Link
+              to="/activities"
+              style={{
+                fontSize: '0.85rem',
+                color: '#2d6a4f',
+                marginTop: '0.75rem',
+                display: 'inline-block',
+              }}
+            >
+              View all activities
+            </Link>
+          </div>
+        )
+      })()}
+
+      {/* Testimonials Feed */}
+      {(() => {
+        const testimonials = testimonialsResult.data?.publicTestimonials ?? []
+        return (
+          <div style={styles.section}>
+            <h2 style={styles.sectionTitle}>Community Testimonials</h2>
+            {testimonialsResult.fetching ? (
+              <p style={{ fontSize: '0.9rem', color: '#777' }}>Loading testimonials...</p>
+            ) : testimonials.length === 0 ? (
+              <p style={{ color: '#666', fontSize: '0.9rem' }}>
+                No community testimonials yet. Share your experience on the{' '}
+                <Link to="/testimonials" style={{ color: '#2d6a4f' }}>
+                  Testimonials page
+                </Link>
+                !
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {testimonials.map(
+                  (testimonial: {
+                    id: string
+                    body: string
+                    createdAt: string
+                    author: { id: string; displayName: string; avatarUrl: string | null }
+                  }) => (
+                    <div
+                      key={testimonial.id}
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '8px',
+                        background: '#f9fbe7',
+                        border: '1px solid #e0e0e0',
+                      }}
+                    >
+                      <p style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: '#333' }}>
+                        "
+                        {testimonial.body.length > 200
+                          ? testimonial.body.slice(0, 200) + '...'
+                          : testimonial.body}
+                        "
+                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#555' }}>
+                          — {testimonial.author.displayName}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#999' }}>
+                          {formatRelativeTime(testimonial.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  ),
+                )}
+              </div>
+            )}
+            <Link
+              to="/testimonials"
+              style={{
+                fontSize: '0.85rem',
+                color: '#2d6a4f',
+                marginTop: '0.75rem',
+                display: 'inline-block',
+              }}
+            >
+              View all testimonials
+            </Link>
+          </div>
+        )
+      })()}
 
       <div style={styles.section}>
         <h2 style={styles.sectionTitle}>Quick Links</h2>

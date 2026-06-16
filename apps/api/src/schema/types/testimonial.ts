@@ -1,6 +1,7 @@
 import { builder } from '../builder.js'
 import { prisma } from '@enc/db'
 import { User } from './user.js'
+import { NestRef } from './nest.js'
 
 // --- Enums ---
 
@@ -35,6 +36,14 @@ builder.objectType(Testimonial, {
     approvalStatus: t.exposeString('approvalStatus'),
     createdAt: t.string({ resolve: (testimonial) => testimonial.createdAt.toISOString() }),
     updatedAt: t.string({ resolve: (testimonial) => testimonial.updatedAt.toISOString() }),
+    nest: t.field({
+      type: NestRef,
+      nullable: true,
+      resolve: async (testimonial) => {
+        if (!testimonial.nestId) return null
+        return prisma.nest.findUnique({ where: { id: testimonial.nestId } })
+      },
+    }),
     author: t.field({
       type: User,
       resolve: async (testimonial) => {
@@ -98,9 +107,10 @@ builder.queryField('nestTestimonials', (t) =>
       return prisma.testimonial.findMany({
         where: {
           nestId: args.nestId,
-          visibility: 'NEST_PRIVATE',
           approvalStatus: 'APPROVED',
+          visibility: { in: ['NEST_PRIVATE', 'PUBLIC'] },
         },
+        orderBy: { createdAt: 'desc' },
       })
     },
   }),
@@ -160,8 +170,11 @@ builder.mutationField('createTestimonial', (t) =>
         }
       }
 
-      // USER_PRIVATE and FAMILY_PRIVATE are auto-approved
-      const autoApprove = visibility === 'USER_PRIVATE' || visibility === 'FAMILY_PRIVATE'
+      // NEST_PRIVATE and USER_PRIVATE and FAMILY_PRIVATE are auto-approved
+      const autoApprove =
+        visibility === 'USER_PRIVATE' ||
+        visibility === 'FAMILY_PRIVATE' ||
+        visibility === 'NEST_PRIVATE'
 
       return prisma.testimonial.create({
         data: {

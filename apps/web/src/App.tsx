@@ -7,10 +7,13 @@ import { ResetPassword } from './pages/ResetPassword'
 import { Dashboard } from './pages/Dashboard'
 import { Activities } from './pages/Activities'
 import { Nests } from './pages/Nests'
+import { DiscoverNests } from './pages/DiscoverNests'
+import { NestProfile } from './pages/NestProfile'
 import { Profile } from './pages/Profile'
 import { UserProfile } from './pages/UserProfile'
 import { PartnerGroups } from './pages/PartnerGroups'
 import { Testimonials } from './pages/Testimonials'
+import { Admin } from './pages/Admin'
 import { NotFound } from './pages/NotFound'
 
 export function App() {
@@ -25,10 +28,13 @@ export function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="activities" element={<Activities />} />
             <Route path="nests" element={<Nests />} />
+            <Route path="nests/discover" element={<DiscoverNests />} />
+            <Route path="nests/:id" element={<NestProfile />} />
             <Route path="profile" element={<Profile />} />
             <Route path="users/:id" element={<UserProfile />} />
             <Route path="partner-groups" element={<PartnerGroups />} />
             <Route path="testimonials" element={<Testimonials />} />
+            <Route path="admin" element={<Admin />} />
           </Route>
         </Route>
         <Route path="*" element={<NotFound />} />

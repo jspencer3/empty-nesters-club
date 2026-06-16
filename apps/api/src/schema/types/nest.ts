@@ -12,6 +12,14 @@ builder.enumType('NestInviteStatus', {
   values: ['PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED'] as const,
 })
 
+builder.enumType('NestVisibility', {
+  values: ['PUBLIC', 'PRIVATE'] as const,
+})
+
+builder.enumType('NestJoinRequestStatus', {
+  values: ['PENDING', 'APPROVED', 'DENIED'] as const,
+})
+
 builder.enumType('AdminVoteStatus', {
   values: ['OPEN', 'PASSED', 'FAILED', 'CANCELLED'] as const,
 })
@@ -44,6 +52,14 @@ builder.objectType(NestMembershipRef, {
         return prisma.user.findUnique({ where: { id: membership.userId } })
       },
     }),
+    nest: t.field({
+      type: NestRef,
+      resolve: async (membership) => {
+        const nest = await prisma.nest.findUnique({ where: { id: membership.nestId } })
+        if (!nest) throw new Error('Nest not found')
+        return nest
+      },
+    }),
   }),
 })
 
@@ -66,6 +82,22 @@ builder.objectType(NestInviteRef, {
     inviteeEmail: t.exposeString('inviteeEmail'),
     status: t.exposeString('status'),
     createdAt: t.string({ resolve: (i) => i.createdAt.toISOString() }),
+    nest: t.field({
+      type: NestRef,
+      resolve: async (invite) => {
+        const nest = await prisma.nest.findUnique({ where: { id: invite.nestId } })
+        if (!nest) throw new Error('Nest not found')
+        return nest
+      },
+    }),
+    inviter: t.field({
+      type: User,
+      resolve: async (invite) => {
+        const user = await prisma.user.findUnique({ where: { id: invite.inviterId } })
+        if (!user) throw new Error('Inviter not found')
+        return user
+      },
+    }),
   }),
 })
 
@@ -125,11 +157,57 @@ builder.objectType(AdminVoteRef, {
   }),
 })
 
+const NestJoinRequestRef = builder.objectRef<{
+  id: string
+  nestId: string
+  userId: string
+  status: string
+  message: string | null
+  createdAt: Date
+  reviewedAt: Date | null
+  reviewedById: string | null
+}>('NestJoinRequest')
+
+builder.objectType(NestJoinRequestRef, {
+  fields: (t) => ({
+    id: t.exposeID('id'),
+    nestId: t.exposeString('nestId'),
+    userId: t.exposeString('userId'),
+    status: t.exposeString('status'),
+    message: t.exposeString('message', { nullable: true }),
+    createdAt: t.string({ resolve: (r) => r.createdAt.toISOString() }),
+    reviewedAt: t.string({
+      nullable: true,
+      resolve: (r) => r.reviewedAt?.toISOString() ?? null,
+    }),
+    user: t.field({
+      type: User,
+      resolve: async (request) => {
+        const user = await prisma.user.findUnique({ where: { id: request.userId } })
+        if (!user) throw new Error('User not found')
+        return user
+      },
+    }),
+    nest: t.field({
+      type: NestRef,
+      resolve: async (request) => {
+        const nest = await prisma.nest.findUnique({ where: { id: request.nestId } })
+        if (!nest) throw new Error('Nest not found')
+        return nest
+      },
+    }),
+  }),
+})
+
 const NestRef = builder.objectRef<{
   id: string
   name: string
   description: string | null
   avatarUrl: string | null
+  visibility: string
+  city: string | null
+  state: string | null
+  zipcode: string | null
   maxMembers: number
   adminIdleThresholdDays: number
   createdAt: Date
@@ -142,6 +220,10 @@ builder.objectType(NestRef, {
     name: t.exposeString('name'),
     description: t.exposeString('description', { nullable: true }),
     avatarUrl: t.exposeString('avatarUrl', { nullable: true }),
+    visibility: t.exposeString('visibility'),
+    city: t.exposeString('city', { nullable: true }),
+    state: t.exposeString('state', { nullable: true }),
+    zipcode: t.exposeString('zipcode', { nullable: true }),
     maxMembers: t.exposeInt('maxMembers'),
     adminIdleThresholdDays: t.exposeInt('adminIdleThresholdDays'),
     createdAt: t.string({ resolve: (n) => n.createdAt.toISOString() }),
@@ -171,6 +253,14 @@ builder.objectType(NestRef, {
       resolve: async (nest) => {
         return prisma.adminVote.findFirst({
           where: { nestId: nest.id, status: 'OPEN' },
+        })
+      },
+    }),
+    pendingJoinRequests: t.field({
+      type: [NestJoinRequestRef],
+      resolve: async (nest) => {
+        return prisma.nestJoinRequest.findMany({
+          where: { nestId: nest.id, status: 'PENDING' },
         })
       },
     }),
@@ -209,15 +299,13 @@ async function requireNestMember(userId: string, nestId: string) {
 
 builder.queryField('myNests', (t) =>
   t.field({
-    type: [NestRef],
+    type: [NestMembershipRef],
     authScopes: { authenticated: true },
     resolve: async (_root, _args, ctx) => {
       const user = await resolveUser(ctx.currentUser!.id)
-      const memberships = await prisma.nestMembership.findMany({
+      return prisma.nestMembership.findMany({
         where: { userId: user.id },
-        include: { nest: true },
       })
-      return memberships.map((m) => m.nest)
     },
   }),
 )
@@ -230,15 +318,47 @@ builder.queryField('nest', (t) =>
     args: {
       id: t.arg.string({ required: true }),
     },
-    resolve: async (_root, args, ctx) => {
-      const user = await resolveUser(ctx.currentUser!.id)
-      // Only visible to members
-      const membership = await prisma.nestMembership.findUnique({
-        where: { nestId_userId: { nestId: args.id, userId: user.id } },
-      })
-      if (!membership) return null
-
+    resolve: async (_root, args, _ctx) => {
+      // Any authenticated user can view a nest by ID
+      // Field-level access (members vs activity feeds) is handled on the frontend
       return prisma.nest.findUnique({ where: { id: args.id } })
+    },
+  }),
+)
+
+builder.queryField('searchNests', (t) =>
+  t.field({
+    type: [NestRef],
+    authScopes: { authenticated: true },
+    args: {
+      name: t.arg.string(),
+      city: t.arg.string(),
+      state: t.arg.string(),
+      zipcode: t.arg.string(),
+    },
+    resolve: async (_root, args) => {
+      const where: Record<string, unknown> = {
+        visibility: 'PUBLIC',
+      }
+
+      if (args.name) {
+        where.name = { contains: args.name, mode: 'insensitive' }
+      }
+      if (args.city) {
+        where.city = { contains: args.city, mode: 'insensitive' }
+      }
+      if (args.state) {
+        where.state = { contains: args.state, mode: 'insensitive' }
+      }
+      if (args.zipcode) {
+        where.zipcode = args.zipcode
+      }
+
+      return prisma.nest.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        take: 50,
+      })
     },
   }),
 )
@@ -268,6 +388,10 @@ const CreateNestInput = builder.inputType('CreateNestInput', {
     name: t.string({ required: true }),
     description: t.string(),
     avatarUrl: t.string(),
+    visibility: t.string(),
+    city: t.string(),
+    state: t.string(),
+    zipcode: t.string(),
   }),
 })
 
@@ -281,11 +405,21 @@ builder.mutationField('createNest', (t) =>
     resolve: async (_root, args, ctx) => {
       const user = await resolveUser(ctx.currentUser!.id)
 
+      // Check name uniqueness (Prisma will enforce too, but give a nicer error)
+      const existing = await prisma.nest.findUnique({ where: { name: args.input.name } })
+      if (existing) {
+        throw new Error('A nest with this name already exists. Please choose a unique name.')
+      }
+
       const nest = await prisma.nest.create({
         data: {
           name: args.input.name,
           description: args.input.description ?? undefined,
           avatarUrl: args.input.avatarUrl ?? undefined,
+          visibility: (args.input.visibility as 'PUBLIC' | 'PRIVATE') ?? 'PUBLIC',
+          city: args.input.city ?? undefined,
+          state: args.input.state ?? undefined,
+          zipcode: args.input.zipcode ?? undefined,
           memberships: {
             create: {
               userId: user.id,
@@ -305,6 +439,10 @@ const UpdateNestInput = builder.inputType('UpdateNestInput', {
     name: t.string(),
     description: t.string(),
     avatarUrl: t.string(),
+    visibility: t.string(),
+    city: t.string(),
+    state: t.string(),
+    zipcode: t.string(),
     maxMembers: t.int(),
     adminIdleThresholdDays: t.int(),
   }),
@@ -322,12 +460,26 @@ builder.mutationField('updateNest', (t) =>
       const user = await resolveUser(ctx.currentUser!.id)
       await requireNestAdmin(user.id, args.nestId)
 
+      // If changing name, check uniqueness
+      if (args.input.name) {
+        const existing = await prisma.nest.findUnique({ where: { name: args.input.name } })
+        if (existing && existing.id !== args.nestId) {
+          throw new Error('A nest with this name already exists. Please choose a unique name.')
+        }
+      }
+
       return prisma.nest.update({
         where: { id: args.nestId },
         data: {
           ...(args.input.name && { name: args.input.name }),
           ...(args.input.description !== undefined && { description: args.input.description }),
           ...(args.input.avatarUrl !== undefined && { avatarUrl: args.input.avatarUrl }),
+          ...(args.input.visibility && {
+            visibility: args.input.visibility as 'PUBLIC' | 'PRIVATE',
+          }),
+          ...(args.input.city !== undefined && { city: args.input.city }),
+          ...(args.input.state !== undefined && { state: args.input.state }),
+          ...(args.input.zipcode !== undefined && { zipcode: args.input.zipcode }),
           ...(args.input.maxMembers != null && { maxMembers: args.input.maxMembers }),
           ...(args.input.adminIdleThresholdDays != null && {
             adminIdleThresholdDays: args.input.adminIdleThresholdDays,
@@ -489,19 +641,26 @@ builder.mutationField('leaveNest', (t) =>
       const user = await resolveUser(ctx.currentUser!.id)
       const membership = await requireNestMember(user.id, args.nestId)
 
-      // Admins can't leave without transferring first
       if (membership.role === 'ADMIN') {
         const otherMembers = await prisma.nestMembership.count({
           where: { nestId: args.nestId, userId: { not: user.id } },
         })
-        if (otherMembers > 0) {
+
+        // If they're the only member, delete the nest entirely
+        if (otherMembers === 0) {
+          await prisma.nest.delete({ where: { id: args.nestId } })
+          return true
+        }
+
+        // If there are other members, ensure at least one other admin exists
+        const otherAdmins = await prisma.nestMembership.count({
+          where: { nestId: args.nestId, userId: { not: user.id }, role: 'ADMIN' },
+        })
+        if (otherAdmins === 0) {
           throw new Error(
-            'Admins must transfer admin role before leaving. Use nominateAdmin to start succession.',
+            'You are the only admin. Transfer admin role to another member before leaving.',
           )
         }
-        // If they're the only member, just delete the nest
-        await prisma.nest.delete({ where: { id: args.nestId } })
-        return true
       }
 
       await prisma.nestMembership.delete({
@@ -730,4 +889,160 @@ builder.mutationField('transferAdmin', (t) =>
   }),
 )
 
-export { NestRef, NestMembershipRef, NestInviteRef, AdminVoteRef }
+// --- Mutations: Join Requests ---
+
+builder.mutationField('requestToJoinNest', (t) =>
+  t.field({
+    type: NestJoinRequestRef,
+    authScopes: { authenticated: true },
+    args: {
+      nestId: t.arg.string({ required: true }),
+      message: t.arg.string(),
+    },
+    resolve: async (_root, args, ctx) => {
+      const user = await resolveUser(ctx.currentUser!.id)
+
+      // Nest must exist and be public
+      const nest = await prisma.nest.findUnique({ where: { id: args.nestId } })
+      if (!nest) throw new Error('Nest not found')
+      if (nest.visibility !== 'PUBLIC') {
+        throw new Error('This nest is not accepting join requests')
+      }
+
+      // Check if already a member
+      const existing = await prisma.nestMembership.findUnique({
+        where: { nestId_userId: { nestId: args.nestId, userId: user.id } },
+      })
+      if (existing) throw new Error('You are already a member of this nest')
+
+      // Check for existing pending request
+      const pendingRequest = await prisma.nestJoinRequest.findUnique({
+        where: { nestId_userId: { nestId: args.nestId, userId: user.id } },
+      })
+      if (pendingRequest && pendingRequest.status === 'PENDING') {
+        throw new Error('You already have a pending join request for this nest')
+      }
+
+      // Check nest capacity
+      const memberCount = await prisma.nestMembership.count({
+        where: { nestId: args.nestId },
+      })
+      if (memberCount >= nest.maxMembers) {
+        throw new Error('Nest has reached maximum capacity')
+      }
+
+      // Upsert (in case they were previously denied and are re-requesting)
+      return prisma.nestJoinRequest.upsert({
+        where: { nestId_userId: { nestId: args.nestId, userId: user.id } },
+        create: {
+          nestId: args.nestId,
+          userId: user.id,
+          message: args.message ?? undefined,
+        },
+        update: {
+          status: 'PENDING',
+          message: args.message ?? undefined,
+          reviewedAt: null,
+          reviewedById: null,
+        },
+      })
+    },
+  }),
+)
+
+builder.mutationField('approveJoinRequest', (t) =>
+  t.field({
+    type: NestJoinRequestRef,
+    authScopes: { authenticated: true },
+    args: {
+      requestId: t.arg.string({ required: true }),
+    },
+    resolve: async (_root, args, ctx) => {
+      const admin = await resolveUser(ctx.currentUser!.id)
+
+      const request = await prisma.nestJoinRequest.findUnique({
+        where: { id: args.requestId },
+      })
+      if (!request) throw new Error('Join request not found')
+      if (request.status !== 'PENDING') throw new Error('Request is no longer pending')
+
+      // Must be an admin of the nest
+      await requireNestAdmin(admin.id, request.nestId)
+
+      // Check capacity
+      const nest = await prisma.nest.findUnique({ where: { id: request.nestId } })
+      if (!nest) throw new Error('Nest not found')
+      const memberCount = await prisma.nestMembership.count({
+        where: { nestId: request.nestId },
+      })
+      if (memberCount >= nest.maxMembers) {
+        throw new Error('Nest has reached maximum capacity')
+      }
+
+      // Add user as member
+      await prisma.nestMembership.create({
+        data: {
+          nestId: request.nestId,
+          userId: request.userId,
+          role: 'MEMBER',
+        },
+      })
+
+      return prisma.nestJoinRequest.update({
+        where: { id: request.id },
+        data: {
+          status: 'APPROVED',
+          reviewedAt: new Date(),
+          reviewedById: admin.id,
+        },
+      })
+    },
+  }),
+)
+
+builder.mutationField('denyJoinRequest', (t) =>
+  t.field({
+    type: NestJoinRequestRef,
+    authScopes: { authenticated: true },
+    args: {
+      requestId: t.arg.string({ required: true }),
+    },
+    resolve: async (_root, args, ctx) => {
+      const admin = await resolveUser(ctx.currentUser!.id)
+
+      const request = await prisma.nestJoinRequest.findUnique({
+        where: { id: args.requestId },
+      })
+      if (!request) throw new Error('Join request not found')
+      if (request.status !== 'PENDING') throw new Error('Request is no longer pending')
+
+      // Must be an admin of the nest
+      await requireNestAdmin(admin.id, request.nestId)
+
+      return prisma.nestJoinRequest.update({
+        where: { id: request.id },
+        data: {
+          status: 'DENIED',
+          reviewedAt: new Date(),
+          reviewedById: admin.id,
+        },
+      })
+    },
+  }),
+)
+
+builder.queryField('myJoinRequests', (t) =>
+  t.field({
+    type: [NestJoinRequestRef],
+    authScopes: { authenticated: true },
+    resolve: async (_root, _args, ctx) => {
+      const user = await resolveUser(ctx.currentUser!.id)
+      return prisma.nestJoinRequest.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+      })
+    },
+  }),
+)
+
+export { NestRef, NestMembershipRef, NestInviteRef, AdminVoteRef, NestJoinRequestRef }

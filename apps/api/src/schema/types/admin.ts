@@ -1,5 +1,8 @@
 import { builder } from '../builder.js'
 import { prisma } from '@enc/db'
+import { Testimonial } from './testimonial.js'
+import { Activity } from './activity.js'
+import { User } from './user.js'
 
 // --- Helper ---
 
@@ -39,7 +42,7 @@ builder.objectType(SystemStats, {
 
 builder.queryField('pendingActivities', (t) =>
   t.field({
-    type: ['String'],
+    type: [Activity],
     authScopes: { authenticated: true },
     args: {
       limit: t.arg.int({ required: false, defaultValue: 20 }),
@@ -48,21 +51,19 @@ builder.queryField('pendingActivities', (t) =>
     resolve: async (_root, args, ctx) => {
       await requireSiteAdmin(ctx)
 
-      const activities = await prisma.activity.findMany({
+      return prisma.activity.findMany({
         where: { status: 'PENDING' },
         orderBy: { createdAt: 'asc' },
         take: args.limit ?? 20,
         skip: args.offset ?? 0,
       })
-
-      return activities.map((a) => JSON.stringify(a))
     },
   }),
 )
 
 builder.queryField('pendingTestimonials', (t) =>
   t.field({
-    type: ['String'],
+    type: [Testimonial],
     authScopes: { authenticated: true },
     args: {
       limit: t.arg.int({ required: false, defaultValue: 20 }),
@@ -71,24 +72,22 @@ builder.queryField('pendingTestimonials', (t) =>
     resolve: async (_root, args, ctx) => {
       await requireSiteAdmin(ctx)
 
-      const testimonials = await prisma.testimonial.findMany({
+      return prisma.testimonial.findMany({
         where: {
           approvalStatus: 'PENDING',
-          visibility: { in: ['PUBLIC', 'NEST_PRIVATE'] },
+          visibility: 'PUBLIC',
         },
         orderBy: { createdAt: 'asc' },
         take: args.limit ?? 20,
         skip: args.offset ?? 0,
       })
-
-      return testimonials.map((t) => JSON.stringify(t))
     },
   }),
 )
 
 builder.queryField('adminUserList', (t) =>
   t.field({
-    type: ['String'],
+    type: [User],
     authScopes: { authenticated: true },
     args: {
       search: t.arg.string({ required: false }),
@@ -106,13 +105,11 @@ builder.queryField('adminUserList', (t) =>
         ]
       }
 
-      const users = await prisma.user.findMany({
+      return prisma.user.findMany({
         where,
         take: args.limit ?? 20,
         skip: args.offset ?? 0,
       })
-
-      return users.map((u) => JSON.stringify(u))
     },
   }),
 )
@@ -156,7 +153,7 @@ builder.queryField('adminSystemStats', (t) =>
 
 builder.mutationField('approveActivity', (t) =>
   t.field({
-    type: 'String',
+    type: Activity,
     authScopes: { authenticated: true },
     args: {
       activityId: t.arg.string({ required: true }),
@@ -164,15 +161,13 @@ builder.mutationField('approveActivity', (t) =>
     resolve: async (_root, args, ctx) => {
       const admin = await requireSiteAdmin(ctx)
 
-      const activity = await prisma.activity.update({
+      return prisma.activity.update({
         where: { id: args.activityId },
         data: {
           status: 'APPROVED',
           approvedById: admin.id,
         },
       })
-
-      return JSON.stringify(activity)
     },
   }),
 )

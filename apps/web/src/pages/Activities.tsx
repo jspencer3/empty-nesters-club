@@ -33,7 +33,7 @@ const MY_BOOKMARKS_QUERY = gql`
 `
 
 const MY_ACTIVITY_INSTANCES_QUERY = gql`
-  query MyActivityInstances($status: String) {
+  query MyActivityInstances($status: InstanceStatus) {
     myActivityInstances(status: $status) {
       id
       status
@@ -89,7 +89,7 @@ const CREATE_ACTIVITY_INSTANCE_MUTATION = gql`
 `
 
 const UPDATE_INSTANCE_STATUS_MUTATION = gql`
-  mutation UpdateInstanceStatus($instanceId: String!, $status: String!) {
+  mutation UpdateInstanceStatus($instanceId: String!, $status: InstanceStatus!) {
     updateInstanceStatus(instanceId: $instanceId, status: $status) {
       id
       status

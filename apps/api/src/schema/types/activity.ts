@@ -282,6 +282,34 @@ builder.queryField('activityInstance', (t) =>
   }),
 )
 
+builder.queryField('nestActivityInstances', (t) =>
+  t.field({
+    type: [ActivityInstanceRef],
+    authScopes: { authenticated: true },
+    args: {
+      nestId: t.arg.string({ required: true }),
+      limit: t.arg.int(),
+    },
+    resolve: async (_root, args, ctx) => {
+      const user = await resolveUser(ctx.currentUser!.id)
+
+      // Must be a member of the nest
+      const membership = await prisma.nestMembership.findUnique({
+        where: { nestId_userId: { nestId: args.nestId, userId: user.id } },
+      })
+      if (!membership) {
+        throw new Error('You are not a member of this nest')
+      }
+
+      return prisma.activityInstance.findMany({
+        where: { nestId: args.nestId },
+        orderBy: { updatedAt: 'desc' },
+        take: args.limit ?? 20,
+      })
+    },
+  }),
+)
+
 // --- Mutations ---
 
 const SubmitActivityInput = builder.inputType('SubmitActivityInput', {

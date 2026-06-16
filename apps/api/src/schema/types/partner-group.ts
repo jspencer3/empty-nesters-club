@@ -1,5 +1,6 @@
 import { builder } from '../builder.js'
 import { prisma } from '@enc/db'
+import { User } from './user.js'
 
 // Registered for schema introspection; used in invite status fields
 builder.enumType('InviteStatus', {
@@ -20,6 +21,13 @@ builder.objectType(PartnerGroupMemberRef, {
     userId: t.exposeString('userId'),
     role: t.exposeString('role'),
     joinedAt: t.field({ type: 'String', resolve: (m) => m.joinedAt.toISOString() }),
+    user: t.field({
+      type: User,
+      nullable: true,
+      resolve: async (member) => {
+        return prisma.user.findUnique({ where: { id: member.userId } })
+      },
+    }),
   }),
 })
 
@@ -42,6 +50,26 @@ builder.objectType(PartnerGroupInviteRef, {
     inviteeEmail: t.exposeString('inviteeEmail'),
     status: t.exposeString('status'),
     createdAt: t.field({ type: 'String', resolve: (i) => i.createdAt.toISOString() }),
+    partnerGroup: t.field({
+      type: PartnerGroup,
+      resolve: async (invite) => {
+        const group = await prisma.partnerGroup.findUnique({
+          where: { id: invite.partnerGroupId },
+        })
+        if (!group) throw new Error('Partner group not found')
+        return group
+      },
+    }),
+    inviter: t.field({
+      type: User,
+      resolve: async (invite) => {
+        const user = await prisma.user.findUnique({
+          where: { id: invite.inviterId },
+        })
+        if (!user) throw new Error('Inviter not found')
+        return user
+      },
+    }),
   }),
 })
 

@@ -9,6 +9,7 @@ const ME_QUERY = gql`
       id
       displayName
       avatarUrl
+      role
     }
   }
 `
@@ -129,6 +130,7 @@ export function Layout() {
   }
 
   const unreadCount = unreadData?.unreadNotificationCount ?? 0
+  const isSiteAdmin = data?.me?.role === 'SITE_ADMIN'
 
   async function handleSignOut() {
     await signOut()
@@ -160,6 +162,11 @@ export function Layout() {
           <Link to="/testimonials" style={styles.navLink}>
             Testimonials
           </Link>
+          {isSiteAdmin && (
+            <Link to="/admin" style={{ ...styles.navLink, color: '#c62828' }}>
+              Admin
+            </Link>
+          )}
           {unreadCount > 0 && (
             <span style={styles.badge}>
               <span style={styles.notifDot} title={`${unreadCount} unread`} />

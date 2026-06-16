@@ -235,8 +235,8 @@ builder.queryField('userDashboard', (t) =>
         prisma.activityInstance.count({ where: { ...instanceWhere, status: 'PLANNED' } }),
         prisma.bookmark.count({ where: { userId: user.id } }),
         prisma.activityInstance.findMany({
-          where: { ...instanceWhere, status: 'DONE' },
-          orderBy: { completedAt: 'desc' },
+          where: instanceWhere,
+          orderBy: { updatedAt: 'desc' },
           take: 5,
         }),
       ])

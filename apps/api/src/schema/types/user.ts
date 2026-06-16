@@ -14,6 +14,7 @@ const User = builder.objectRef<{
   yearsEmpty: number | null
   numberOfKids: number | null
   interests: string[]
+  role: string
   profileVisibility: string
   createdAt: Date
   updatedAt: Date
@@ -29,6 +30,7 @@ builder.objectType(User, {
     yearsEmpty: t.exposeInt('yearsEmpty', { nullable: true }),
     numberOfKids: t.exposeInt('numberOfKids', { nullable: true }),
     interests: t.exposeStringList('interests'),
+    role: t.exposeString('role'),
     profileVisibility: t.exposeString('profileVisibility'),
     createdAt: t.string({ resolve: (user) => user.createdAt.toISOString() }),
     updatedAt: t.string({ resolve: (user) => user.updatedAt.toISOString() }),

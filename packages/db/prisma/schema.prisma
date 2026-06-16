@@ -41,6 +41,8 @@ model User {
   approvedTestimonials    Testimonial[]        @relation("TestimonialApprover")
   submittedActivities     Activity[]           @relation("ActivitySubmitter")
   approvedActivities      Activity[]           @relation("ActivityApprover")
+  nestJoinRequests        NestJoinRequest[]    @relation("JoinRequestUser")
+  reviewedJoinRequests    NestJoinRequest[]    @relation("JoinRequestReviewer")
 
   @@map("users")
 }
@@ -115,22 +117,56 @@ enum InviteStatus {
 }
 
 model Nest {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String
+  id          String         @id @default(uuid()) @db.Uuid
+  name        String         @unique
   description String?
-  avatarUrl   String?  @map("avatar_url")
-  maxMembers  Int      @default(100) @map("max_members")
+  avatarUrl   String?        @map("avatar_url")
+  visibility  NestVisibility @default(PUBLIC)
+  city        String?
+  state       String?
+  zipcode     String?
+  maxMembers  Int            @default(100) @map("max_members")
   adminIdleThresholdDays Int @default(30) @map("admin_idle_threshold_days")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
 
-  memberships NestMembership[]
-  invites     NestInvite[]
-  adminVotes  AdminVote[]
+  memberships    NestMembership[]
+  invites        NestInvite[]
+  joinRequests   NestJoinRequest[]
+  adminVotes     AdminVote[]
   activityInstances ActivityInstance[]
-  testimonials      Testimonial[]
+  testimonials   Testimonial[]
 
   @@map("nests")
+}
+
+enum NestVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+model NestJoinRequest {
+  id        String             @id @default(uuid()) @db.Uuid
+  nestId    String             @map("nest_id") @db.Uuid
+  userId    String             @map("user_id") @db.Uuid
+  status    NestJoinRequestStatus @default(PENDING)
+  message   String?
+  createdAt DateTime           @default(now()) @map("created_at")
+  reviewedAt DateTime?         @map("reviewed_at")
+  reviewedById String?         @map("reviewed_by_id") @db.Uuid
+
+  nest       Nest  @relation(fields: [nestId], references: [id], onDelete: Cascade)
+  user       User  @relation("JoinRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy User? @relation("JoinRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([nestId, userId])
+  @@map("nest_join_requests")
+}
+
+enum NestJoinRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
 }
 
 model NestInvite {

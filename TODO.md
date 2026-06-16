@@ -7,8 +7,11 @@
 - [x] **Supabase project provisioning** — Real project, JWT secret, env vars configured
 - [x] **Route guards** — Redirect unauthenticated users from protected routes
 - [x] **Local dev environment** — Docker Postgres + Redis, Prisma push, seed data
+- [x] **Frontend forms and mutations — Profile create/edit**
+- [x] **Nest CRUD** — Create with globally unique name, visibility (PUBLIC/PRIVATE), location (city/state/zip), admin approval for join requests
+- [x] **Nest discovery** — Search public nests by name/location, request to join, nest profile page (member vs non-member views)
 - [ ] **Supabase webhook** — Auto-create User record on signup (API endpoint hit by Supabase)
-- [ ] **Frontend forms and mutations** — Profile create/edit, partner groups, nest CRUD, activity lifecycle
+- [ ] **Frontend forms and mutations** — Partner groups (two-step verification), activity lifecycle
 - [ ] **Real-time notifications** — WebSocket subscription delivery (server + client)
 - [ ] **Database migrations** — Convert from `db push` to proper migration history for production
 
